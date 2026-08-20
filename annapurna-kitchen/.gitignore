@@ -1,0 +1,45 @@
+# ---- secrets -------------------------------------------------------------
+.env
+*.env
+!.env.example
+backend/.env
+frontend/.env
+
+# ---- python --------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ---- node ----------------------------------------------------------------
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- runtime data --------------------------------------------------------
+backend/instance/
+backend/backups/
+backend/logs/
+*.sqlite
+*.sqlite3
+*.db
+*.sql.gz
+backend-dev.log
+
+# ---- editors / OS --------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "annapurna-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "annapurna-kitchen/frontend"],
+      "port": 5173,
+      "autoPort": true
+    }
+  ]
+}

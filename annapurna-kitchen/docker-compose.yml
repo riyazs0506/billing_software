@@ -1,0 +1,92 @@
+# ---------------------------------------------------------------------------
+# Annapurna Kitchen — full stack (MySQL + Flask + React/nginx)
+#
+#   cp .env.docker.example .env
+#   docker compose up --build
+#   docker compose exec backend flask --app run:app db upgrade
+#   docker compose exec backend flask --app run:app seed
+#
+# Frontend: http://localhost:8080     API: http://localhost:5000/api
+# ---------------------------------------------------------------------------
+services:
+  db:
+    image: mysql:8.0
+    container_name: annapurna-db
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${MYSQL_DB:-annapurna_kitchen}
+      MYSQL_USER: ${MYSQL_USER:-annapurna}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-annapurna}
+    ports:
+      - '${MYSQL_PORT:-3306}:3306'
+    volumes:
+      - db_data:/var/lib/mysql
+      # Runs only on an empty data directory; Alembic owns the schema after that.
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-p${MYSQL_ROOT_PASSWORD:-rootpass}']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: annapurna-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLASK_ENV: ${FLASK_ENV:-production}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env}
+      DB_ENGINE: mysql
+      MYSQL_HOST: db
+      MYSQL_PORT: 3306
+      MYSQL_DB: ${MYSQL_DB:-annapurna_kitchen}
+      MYSQL_USER: ${MYSQL_USER:-annapurna}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-annapurna}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-30}
+      BACKUP_ENABLED: 'true'
+      BACKUP_DIR: /var/backups/annapurna
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin@12345}
+      SEED_CASHIER_USERNAME: ${SEED_CASHIER_USERNAME:-cashier}
+      SEED_CASHIER_PASSWORD: ${SEED_CASHIER_PASSWORD:-Cashier@12345}
+    ports:
+      - '5000:5000'
+    volumes:
+      - backups:/var/backups/annapurna
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:5000/api/health').status==200 else 1)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Same-origin: nginx proxies /api to the backend container.
+        VITE_API_BASE_URL: /api
+    container_name: annapurna-web
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '${WEB_PORT:-8080}:80'
+
+volumes:
+  db_data:
+  backups:
