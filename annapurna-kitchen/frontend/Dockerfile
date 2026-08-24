@@ -1,7 +1,7 @@
 # ---- build ---------------------------------------------------------------
 FROM node:22-alpine AS build
 
-ARG VITE_API_BASE_URL=/api
+ARG VITE_API_BASE_URL=https://billing-software-ll83.onrender.com/api
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 WORKDIR /app
