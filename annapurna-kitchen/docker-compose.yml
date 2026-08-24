@@ -1,92 +1,142 @@
-# ---------------------------------------------------------------------------
-# Annapurna Kitchen — full stack (MySQL + Flask + React/nginx)
-#
-#   cp .env.docker.example .env
-#   docker compose up --build
-#   docker compose exec backend flask --app run:app db upgrade
-#   docker compose exec backend flask --app run:app seed
-#
-# Frontend: http://localhost:8080     API: http://localhost:5000/api
-# ---------------------------------------------------------------------------
-services:
-  db:
-    image: mysql:8.0
-    container_name: annapurna-db
-    restart: unless-stopped
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --default-authentication-plugin=mysql_native_password
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
-      MYSQL_DATABASE: ${MYSQL_DB:-annapurna_kitchen}
-      MYSQL_USER: ${MYSQL_USER:-annapurna}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-annapurna}
-    ports:
-      - '${MYSQL_PORT:-3306}:3306'
-    volumes:
-      - db_data:/var/lib/mysql
-      # Runs only on an empty data directory; Alembic owns the schema after that.
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-    healthcheck:
-      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-p${MYSQL_ROOT_PASSWORD:-rootpass}']
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
 
+# ---------------------------------------------------------------------------
+# Annapurna Kitchen — Production Docker Stack
+#
+# React/Nginx + Flask/Gunicorn + Aiven MySQL
+#
+# Database:
+#   Aiven MySQL (managed database with TLS)
+#
+# Local:
+#   docker compose up --build
+#
+# Frontend:
+#   http://localhost:8080
+#
+# Backend:
+#   http://localhost:5000/api
+#
+# IMPORTANT:
+#   Database credentials must be supplied through .env
+#   Do NOT commit .env to GitHub.
+# ---------------------------------------------------------------------------
+
+services:
+
+  # -------------------------------------------------------------------------
+  # Flask Backend
+  # -------------------------------------------------------------------------
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+
     container_name: annapurna-api
+
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
+
     environment:
+      # Flask
       FLASK_ENV: ${FLASK_ENV:-production}
-      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env}
+      HOST: 0.0.0.0
+      PORT: 5000
+
+      # Security
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
+
+      # ---------------------------------------------------------------------
+      # Aiven MySQL
+      # ---------------------------------------------------------------------
       DB_ENGINE: mysql
-      MYSQL_HOST: db
-      MYSQL_PORT: 3306
-      MYSQL_DB: ${MYSQL_DB:-annapurna_kitchen}
-      MYSQL_USER: ${MYSQL_USER:-annapurna}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-annapurna}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+
+      MYSQL_HOST: ${MYSQL_HOST:?MYSQL_HOST is required}
+      MYSQL_PORT: ${MYSQL_PORT:-20934}
+      MYSQL_DB: ${MYSQL_DB:?MYSQL_DB is required}
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+
+      # Aiven TLS
+      MYSQL_SSL_MODE: ${MYSQL_SSL_MODE:-REQUIRED}
+
+      # Optional CA certificate
+      MYSQL_SSL_CA: ${MYSQL_SSL_CA:-}
+
+      # Session / JWT
+      JWT_ACCESS_MINUTES: ${JWT_ACCESS_MINUTES:-60}
+      JWT_REFRESH_DAYS: ${JWT_REFRESH_DAYS:-7}
       SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-30}
-      BACKUP_ENABLED: 'true'
+
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+
+      # Business defaults
+      DEFAULT_GST_RATE: ${DEFAULT_GST_RATE:-5.00}
+      DEFAULT_TAX_MODE: ${DEFAULT_TAX_MODE:-exclusive}
+
+      # Backups
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-true}
       BACKUP_DIR: /var/backups/annapurna
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_HOUR: ${BACKUP_HOUR:-23}
+      BACKUP_MINUTE: ${BACKUP_MINUTE:-45}
+      MYSQLDUMP_PATH: ${MYSQLDUMP_PATH:-mysqldump}
+
+      # Seed accounts
       SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin@12345}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD is required}
+
       SEED_CASHIER_USERNAME: ${SEED_CASHIER_USERNAME:-cashier}
-      SEED_CASHIER_PASSWORD: ${SEED_CASHIER_PASSWORD:-Cashier@12345}
+      SEED_CASHIER_PASSWORD: ${SEED_CASHIER_PASSWORD:?SEED_CASHIER_PASSWORD is required}
+
     ports:
-      - '5000:5000'
+      - "${BACKEND_PORT:-5000}:5000"
+
     volumes:
       - backups:/var/backups/annapurna
+
     healthcheck:
-      test: ['CMD', 'python', '-c', "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:5000/api/health').status==200 else 1)"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:5000/api/health').status == 200 else 1)"
+        ]
       interval: 20s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 30s
 
+
+  # -------------------------------------------------------------------------
+  # React Frontend + Nginx
+  # -------------------------------------------------------------------------
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        # Same-origin: nginx proxies /api to the backend container.
-        VITE_API_BASE_URL: /api
-    container_name: annapurna-web
-    restart: unless-stopped
-    depends_on:
-      - backend
-    ports:
-      - '${WEB_PORT:-8080}:80'
 
+      args:
+        # Same-origin API.
+        # Nginx should proxy /api to the Flask backend.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+
+    container_name: annapurna-web
+
+    restart: unless-stopped
+
+    depends_on:
+      backend:
+        condition: service_healthy
+
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+
+# ---------------------------------------------------------------------------
+# Persistent Docker volumes
+# ---------------------------------------------------------------------------
 volumes:
-  db_data:
   backups:
+
