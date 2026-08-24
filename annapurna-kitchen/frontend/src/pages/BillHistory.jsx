@@ -10,6 +10,7 @@ import Modal from '../components/common/Modal'
 import DataTable from '../components/common/DataTable'
 import { Badge, ConfirmDialog, PageHeader, StatCard } from '../components/common/Bits'
 import { EmptyState, ErrorState } from '../components/common/States'
+import { SupportCard } from '../components/common/Support'
 import { PrintStage } from '../components/billing/PrintTemplates'
 import usePrinting from '../components/billing/usePrinting'
 import {
@@ -560,6 +561,12 @@ export default function BillHistory() {
         onConfirm={() => doVoid(voiding)}
         onCancel={() => setVoiding(null)}
       />
+
+      {/*
+        The cashier has no admin dashboard, so this is where they get the full
+        support card. Admins already have it on their dashboard.
+      */}
+      {!isAdmin && <SupportCard className="mt-5" />}
 
       <PrintStage kind={printing.staged?.kind} payload={printing.staged?.payload} />
       {printing.dialog}

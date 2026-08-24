@@ -5,6 +5,7 @@ import { HOME_FOR_ROLE } from '../components/layout/navigation'
 import Button from '../components/common/Button'
 import { Input } from '../components/common/Field'
 import { IconAlert, IconLock, IconUser } from '../components/common/Icons'
+import { VendorByline } from '../components/common/Support'
 
 export default function Login() {
   const { login, isAuthenticated, user, booting, sessionMessage, clearSessionMessage } = useAuth()
@@ -154,6 +155,8 @@ export default function Login() {
         <p className="mt-5 text-center text-[12px] text-brand-200/70">
           GST-compliant billing · Yield-based inventory · Offline-capable
         </p>
+
+        <VendorByline className="mt-4 border-t border-white/10 pt-4" />
       </div>
     </div>
   )

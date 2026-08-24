@@ -443,7 +443,9 @@ export default function BillingScreen() {
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_23rem] xl:grid-cols-[1fr_25rem]">
         {/* ---------------- left: menu ---------------- */}
-        <section className="card flex min-h-0 flex-col p-4" aria-label="Menu">
+        {/* min-w-0: a grid item defaults to min-width:auto, which lets wide
+            content stretch the track and scroll the whole page sideways. */}
+        <section className="card flex min-h-0 min-w-0 flex-col p-4" aria-label="Menu">
           <div className="mb-3 flex flex-wrap items-center gap-3">
             <SegmentedControl
               size="lg"
@@ -497,7 +499,7 @@ export default function BillingScreen() {
 
         {/* ---------------- right: order ---------------- */}
         <section
-          className="card flex min-h-0 flex-col overflow-hidden"
+          className="card flex min-h-0 min-w-0 flex-col overflow-hidden"
           aria-label="Current order"
         >
           <header className="flex items-center justify-between gap-2 border-b border-ink-100 px-4 py-3">

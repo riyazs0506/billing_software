@@ -249,6 +249,21 @@ export const IconLock = (p) => (
   </svg>
 )
 
+export const IconPhone = (p) => (
+  <svg {...base(p)}>
+    <path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.3 1.8.6 2.7a2 2 0 01-.4 2.1L8 9.8a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.4c.9.3 1.8.5 2.7.6a2 2 0 011.9 2.2z" />
+  </svg>
+)
+
+export const IconSupport = (p) => (
+  <svg {...base(p)}>
+    <path d="M4 15v-3a8 8 0 1116 0v3" />
+    <path d="M18 19a2 2 0 01-2 2h-2" />
+    <rect x="2" y="14" width="4" height="6" rx="1.5" />
+    <rect x="18" y="14" width="4" height="6" rx="1.5" />
+  </svg>
+)
+
 export const IconReceipt = (p) => (
   <svg {...base(p)}>
     <path d="M6 2h12a1 1 0 011 1v18l-2.5-1.6L14 21l-2-1.6L10 21l-2.5-1.6L5 21V3a1 1 0 011-1z" />

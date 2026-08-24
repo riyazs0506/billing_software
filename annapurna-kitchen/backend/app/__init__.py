@@ -143,6 +143,40 @@ def _register_cli(app: Flask) -> None:
         log = backup_service.run_backup(trigger="cli")
         click.echo(log.status + ": " + (log.message or ""))
 
+    @app.cli.command("db-check")
+    def db_check_command():
+        """Show the configured database target and prove the connection works."""
+        from urllib.parse import urlparse
+
+        uri = app.config["SQLALCHEMY_DATABASE_URI"]
+        parsed = urlparse(uri)
+        click.echo("driver   : " + parsed.scheme)
+        if parsed.hostname:
+            click.echo("server   : " + parsed.hostname + ":" + str(parsed.port or ""))
+            click.echo("database : " + (parsed.path or "/").lstrip("/").split("?")[0])
+            click.echo("user     : " + (parsed.username or ""))
+        click.echo("ssl mode : " + app.config.get("MYSQL_SSL_MODE", "DISABLED"))
+        click.echo("ssl ca   : " + (app.config.get("MYSQL_SSL_CA") or "-"))
+
+        try:
+            version = db.session.execute(db.text("SELECT VERSION()")).scalar()
+        except Exception as exc:  # noqa: BLE001 - the reason is the whole point
+            db.session.rollback()
+            raise SystemExit("CONNECTION FAILED: " + str(exc))
+
+        click.echo("server version: " + str(version))
+        if parsed.scheme.startswith("mysql"):
+            cipher = db.session.execute(
+                db.text("SHOW STATUS LIKE 'Ssl_cipher'")
+            ).fetchone()
+            click.echo("encryption    : " + ((cipher and cipher[1]) or "NONE (plaintext)"))
+            tables = db.session.execute(
+                db.text("SELECT COUNT(*) FROM information_schema.tables "
+                        "WHERE table_schema = DATABASE()")
+            ).scalar()
+            click.echo("tables        : " + str(tables))
+        click.echo("OK")
+
     @app.cli.command("create-tables")
     def create_tables_command():
         """Create tables directly (bypasses Alembic; handy for a quick demo)."""

@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext'
 import { useAppData } from '../../context/AppDataContext'
 import { navFor } from './navigation'
 import { ConfirmDialog } from '../common/Bits'
+import { SupportDialog, SupportStrip } from '../common/Support'
+import { VENDOR } from '../../config/vendor'
 import {
   IconAlert,
   IconBurger,
@@ -11,6 +13,7 @@ import {
   IconLogout,
   IconOffline,
   IconRefresh,
+  IconSupport,
   IconWifi,
   IconX,
 } from '../common/Icons'
@@ -124,6 +127,7 @@ export default function AppShell({ children }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [supportOpen, setSupportOpen] = useState(false)
 
   const items = navFor(user?.role || 'cashier')
 
@@ -193,6 +197,11 @@ export default function AppShell({ children }) {
         <IconLogout className="h-[18px] w-[18px]" />
         Log out
       </button>
+
+      {/* Vendor support — on screen for both roles, on every page. */}
+      <div className="mt-2 border-t border-white/10 pt-2">
+        <SupportStrip />
+      </div>
     </div>
   )
 
@@ -248,6 +257,20 @@ export default function AppShell({ children }) {
           </span>
 
           <div className="ml-auto flex items-center gap-2.5">
+            {/*
+              On a counter tablet the sidebar is collapsed behind the hamburger,
+              so this is the only support entry point the cashier can see while
+              billing. One tap dials.
+            */}
+            <button
+              type="button"
+              onClick={() => setSupportOpen(true)}
+              title={`Support — ${VENDOR.name}`}
+              className="tap flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-[13px] font-semibold text-ink-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800"
+            >
+              <IconSupport className="h-4 w-4" />
+              <span className="hidden sm:inline">Support</span>
+            </button>
             <ConnectionPill />
             <span className="hidden items-center gap-2 border-l border-ink-200 pl-3 sm:flex">
               <span className="grid h-8 w-8 place-items-center rounded-full bg-brand-100 font-display text-xs font-bold text-brand-800">
@@ -267,6 +290,8 @@ export default function AppShell({ children }) {
 
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6">{children}</main>
       </div>
+
+      <SupportDialog open={supportOpen} onClose={() => setSupportOpen(false)} />
 
       <ConfirmDialog
         open={confirmLogout}

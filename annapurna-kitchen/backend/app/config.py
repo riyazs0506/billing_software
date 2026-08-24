@@ -1,10 +1,23 @@
 """Environment driven configuration (dev / staging / prod / testing)."""
 import os
 from datetime import timedelta
+from urllib.parse import quote, urlparse
+
+LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1", "db"}
 
 
 def _bool(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _backend_root() -> str:
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _resolve(path: str) -> str:
+    """Make a relative path absolute against backend/ - the process may be
+    started from anywhere."""
+    return path if os.path.isabs(path) else os.path.join(_backend_root(), path)
 
 
 def _build_database_uri() -> str:
@@ -19,17 +32,15 @@ def _build_database_uri() -> str:
 
     engine = os.getenv("DB_ENGINE", "mysql").lower()
     if engine == "sqlite":
-        path = os.getenv("SQLITE_PATH", "instance/annapurna.db")
-        if not os.path.isabs(path):
-            # Resolve against backend/ so the file lands in a predictable place
-            # no matter which directory the process was started from.
-            backend_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            path = os.path.join(backend_root, path)
+        path = _resolve(os.getenv("SQLITE_PATH", "instance/annapurna.db"))
         os.makedirs(os.path.dirname(path), exist_ok=True)
         return "sqlite:///" + path.replace("\\", "/")
 
-    user = os.getenv("MYSQL_USER", "annapurna")
-    password = os.getenv("MYSQL_PASSWORD", "")
+    # Managed providers hand out generated passwords that routinely contain
+    # characters with a meaning inside a URI (@ : / ?), so quote the credentials
+    # rather than letting them corrupt the DSN.
+    user = quote(os.getenv("MYSQL_USER", "annapurna"), safe="")
+    password = quote(os.getenv("MYSQL_PASSWORD", ""), safe="")
     host = os.getenv("MYSQL_HOST", "127.0.0.1")
     port = os.getenv("MYSQL_PORT", "3306")
     name = os.getenv("MYSQL_DB", "annapurna_kitchen")
@@ -39,16 +50,64 @@ def _build_database_uri() -> str:
     )
 
 
+def _ssl_mode(uri: str) -> str:
+    """How strictly TLS is applied, mirroring the mysql client's --ssl-mode.
+
+    DISABLED / REQUIRED (encrypt, do not validate) / VERIFY_CA /
+    VERIFY_IDENTITY (validate, and match the hostname). Hosted MySQL - Aiven,
+    RDS, PlanetScale - rejects plaintext, so any non-local host defaults to
+    REQUIRED instead of silently failing the handshake.
+    """
+    host = (urlparse(uri).hostname or "").lower()
+    default = "DISABLED" if host in LOCAL_HOSTS else "REQUIRED"
+    return os.getenv("MYSQL_SSL_MODE", default).strip().upper()
+
+
+def _ssl_ca() -> str | None:
+    """Path to the provider's CA certificate, when one is configured."""
+    ca = os.getenv("MYSQL_SSL_CA", "").strip()
+    return _resolve(ca) if ca else None
+
+
+def _engine_options(uri: str) -> dict:
+    options: dict = {"pool_pre_ping": True, "pool_recycle": 280}
+    if not uri.startswith("mysql"):
+        return options
+
+    mode = _ssl_mode(uri)
+    if mode == "DISABLED":
+        return options
+
+    if mode in {"VERIFY_CA", "VERIFY_IDENTITY"}:
+        ca = _ssl_ca()
+        if not ca:
+            raise RuntimeError(
+                "MYSQL_SSL_MODE=" + mode + " needs MYSQL_SSL_CA to point at the "
+                "CA certificate downloaded from your database provider."
+            )
+        if not os.path.exists(ca):
+            raise RuntimeError("CA certificate not found: " + ca)
+        ssl_args = {"ca": ca, "check_hostname": mode == "VERIFY_IDENTITY"}
+    else:
+        # REQUIRED - encrypted, certificate not validated. This is exactly what
+        # the "?ssl-mode=REQUIRED" in a hosted service URI asks for.
+        ssl_args = {"check_hostname": False, "verify_mode": False}
+
+    options["connect_args"] = {"ssl": ssl_args}
+    return options
+
+
 class BaseConfig:
     SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-env")
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-me-in-env-too")
 
     SQLALCHEMY_DATABASE_URI = _build_database_uri()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_pre_ping": True,
-        "pool_recycle": 280,
-    }
+    SQLALCHEMY_ENGINE_OPTIONS = _engine_options(SQLALCHEMY_DATABASE_URI)
+
+    # Kept as plain config so mysqldump can be given the same TLS settings.
+    MYSQL_SSL_MODE = _ssl_mode(SQLALCHEMY_DATABASE_URI)
+    MYSQL_SSL_CA = _ssl_ca()
 
     # --- JWT / session ---------------------------------------------------
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(

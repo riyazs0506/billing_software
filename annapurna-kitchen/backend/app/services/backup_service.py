@@ -116,8 +116,19 @@ def run_backup(trigger: str = "manual", user_id: int | None = None) -> BackupLog
                 "--single-transaction",
                 "--routines",
                 "--default-character-set=utf8mb4",
-                cfg["database"],
+                # Hosted MySQL does not grant PROCESS or SUPER to the service
+                # account, so skip the tablespace query and the GTID header -
+                # both would otherwise abort the dump or the later restore.
+                "--no-tablespaces",
+                "--set-gtid-purged=OFF",
             ]
+            ssl_mode = current_app.config.get("MYSQL_SSL_MODE", "DISABLED")
+            if ssl_mode != "DISABLED":
+                command.append("--ssl-mode=" + ssl_mode)
+                ca = current_app.config.get("MYSQL_SSL_CA")
+                if ca and ssl_mode.startswith("VERIFY"):
+                    command.append("--ssl-ca=" + ca)
+            command.append(cfg["database"])
             env = dict(os.environ)
             if cfg["password"]:
                 # Passed via env so it never lands in the process list.

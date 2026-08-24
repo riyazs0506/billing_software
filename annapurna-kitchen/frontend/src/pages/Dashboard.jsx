@@ -5,6 +5,7 @@ import reportService from '../services/reportService'
 import { PageHeader, StatCard, Badge } from '../components/common/Bits'
 import { ErrorState, SkeletonGrid } from '../components/common/States'
 import Button from '../components/common/Button'
+import { SupportCard } from '../components/common/Support'
 import { ChartCard, DonutChart, SalesTrendChart, BarSeriesChart } from '../components/reports/Charts'
 import {
   IconAlert,
@@ -256,6 +257,8 @@ export default function Dashboard() {
               )}
             </ChartCard>
           </div>
+
+          <SupportCard className="mt-4" />
         </>
       )}
     </div>

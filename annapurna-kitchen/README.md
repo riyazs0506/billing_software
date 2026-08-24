@@ -9,6 +9,25 @@ that matches a manual calculation to the paisa.
 
 ---
 
+## Support
+
+This software is developed and supported by **Nexverr Technology**.
+
+| | |
+| --- | --- |
+| Support line 1 | **81229 35506** |
+| Support line 2 | **81482 65176** |
+| Hours | Mon–Sat, 9:00 AM – 9:00 PM |
+
+The numbers appear in the app for both roles — on the admin dashboard, on the
+cashier's Bill History, as a Support button in the top bar of every screen, and
+on the login page. They are `tel:` links, so one tap dials from the counter
+tablet. All of it reads from
+[`frontend/src/config/vendor.js`](frontend/src/config/vendor.js), so changing a
+number is a one-line edit.
+
+---
+
 ## Contents
 
 - [What it does](#what-it-does)
